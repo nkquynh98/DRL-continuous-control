@@ -16,7 +16,6 @@ TAU = 1e-3              # for soft update of target parameters
 LR_ACTOR = 1e-4         # learning rate of the actor 
 LR_CRITIC = 1e-4        # learning rate of the critic
 WEIGHT_DECAY = 0  # L2 weight decay 0.001
-
 UPDATE_EVERY = 20       # Update after t-step
 NUM_UPDATE = 10           # Number of updates per step
 

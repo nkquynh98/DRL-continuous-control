@@ -1,8 +1,7 @@
 
 [//]: # (Image References)
 
-[image1]: https://user-images.githubusercontent.com/10624937/42135619-d90f2f28-7d12-11e8-8823-82b970a54d7e.gif "Trained Agent"
-[image2]: Q_learning.png "Q_learning"
+[image1]: https://user-images.githubusercontent.com/10624937/43851024-320ba930-9aff-11e8-8493-ee547c6af349.gif "Trained Agent"
 # Project Report: Navigation in Banana unity enviroment using Deep Q-Learning Network 
 
 ## This report contains the following chapter:
@@ -14,167 +13,215 @@
 
 ## Introduction
 
-In the recent years, Reinforcement Learning (RL) is a viral topic that has been researched and developed to solved various problem in the real world. In this project, we implemented a variant of the RL algorithm called Deep Q - Learning (DQN) to solve the task of Banana Collection. 
+In the recent years, Reinforcement Learning (RL) is a viral topic that has been researched and developed to solved various problem in the real world. In this project, we implemented an actor-critic RL method called Deep Deterministic Policy Gradient (DDPG) for training 20 virtual arms to reach the target ball.  
 
 ## Task description
 ### Given
 ![Trained Agent][image1]
-* A large square world with random purple and yellow bananas.
-* A reward of +1 is provided for collecting a yellow banana, and a reward of -1 is provided for collecting a blue banana.
-* An agent with a state space of 37 dimensions and a action space of 4 dimesntion. 
-* The state space including the agent's velocity, along with ray-based perception of objects around agent's forward direction.
-* Four actions for the agent to choose based on the environment:
-    - **`0`** - move forward.
-    - **`1`** - move backward.
-    - **`2`** - turn left.
-    - **`3`** - turn right.
+* Twenty double-jointed arm can move to target locations.
+* A reward of +0.1 is provided for each step that the agent's hand is in the goal location.
+* Observation space consists of 33 variables corresponding to position, rotation, velocity, and angular velocities for each arms (20 states in total)
+* Each action is a vector with four numbers, corresponding to torque applicable to two joints
+* Every entry in the action vector should be a number between -1 and 1.
 
 ### Goal
-* Train the agent to navigate and collect as many yellow bananas as possible while avoiding blue bananas to get the highest reward.
-* The environment is considered as solved when agent get an average score of +13 over 100 consecutive episodes.
+* Train the agent to maintain position of 20 arms at the target location for as many time steps as possible.
+
+* After each episode, we add up the rewards that each agent received (without discounting), to get a score for each agent.  This yields 20 (potentially different) scores.  We then take the average of these 20 scores. This yields an **average score** for each episode (where the average is over all 20 agents).
+
+* The environment is considered solved, when the average (over 100 episodes) of those average scores is at least +30. 
 
 ## Algorithm
-To solve this problem, we implement the Deep Q - Learning algorithm mentioned in [1]. In that paper, they proposed a method to train an agent to play several Atari games and try to achieve highest possible scores. 
+To solve this problem, we implement the Deep algorithm mentioned in Deep Deterministic Policy Gradient [1] and [2]. In that paper, they proposed using actor-critc method, which is a combination of two RL aproaches, for training an agent with continous action space. 
 
-Basically, this algorithm is based on a Reinforcement learning tabular method called Q-learning. In this method, the Q value for each state-action pair is updated at each time step by the following formular:
+Basically, this algorithm is based on Deep Q-Learning mentioned in [3]. However in the vanila Deep Q-Learning the action space is discrete and the action is chosen based on the maximum of the Q_value of that state. In the DDPR, the action space is continous and approximated by a Deep Neural Network which is updated by the policy gradient method as followed: 
 
-![Q_learning_formular](Asset/Q_learning.png)
+![DDPR Policy Gradient Update](Asset/DDPR.png)
 
-However, the old Q-learning alogirthm used the a table to store all of the Q-value. This method is obviously not scaleable to larger state spaces, especially for the continous state. Hence, the authors in [1] has approximated the Q function with a Linear neural network model and then trained this model to attain the optimal Q value. This algorithm is called "Deep Q - Learning" (DQL). This procedure can be described by the loss function as follwed:
-
-![DQL Loss Function](Asset/DQL.png)
-
-Furthermore, to solve the problem of half observed environment and enhance the end-to-end learning feature, the authors also implemented 2 layers of Convolution Neural Network to process the spatial information gathered from the raw image of the games. The full network of the model is shown in the following image:
-
-![Model](Asset/CNN.png)
+In short, the DDPR algorithm maintains four Neural Network. Two networks (local and target) for approximation the policy function used for choosing an action based on a given state (actor). Two networks (local and target) for approximation the Q_value function. These two networks are then used for validation the policy as mentioned before (critic).
 
 ## Implementation
 
-To implement the aformentioned algorithm to this project, we must do some modification which is described in this section. 
+To implement the aformentioned algorithm to this project, we re-used the implementation of DDPR from Udacity [4] with some modifications. 
 
-### Deep Q-Learning Model
+### DDPR Model
 
-As mentioned, the state spaces of the environment has 37 dimensions with continous values and a action space of 4 dimensions. Hence, a fully connected network with input size of 37 and output size of 4 should be used. Furthermore, in constrast to the original algorithm of [1], no convolution layer is needed because we do not consider any image as input. 
+Aformentioned, the DDPR used four networks in total. Two for actors and two for critics. However, in this project, the structure of those four networks are rather similiar with 1 input layer, 2 hidden layer and 1 output layer. The implementation of those models are stored in `DDPR_Model.py`.
 
-The structure of this model is implemented in `DQN_model.py`. This code is based on the Udacity Q-network implementation [2] without major change. There are two 64 units hidden layers and each layer is activated by ReLU function. This model is built based on `pytorch` framework.
-
+#### Actor model 
 
 ```python
-class DQL_network(nn.Module):
-    def __init__(self, state_values, action_values, seed, fc1_values = 64, fc2_values = 64):
+class Actor(nn.Module):
+    """Actor (Policy) Model."""
 
-        super(DQL_network, self).__init__()
-
+    def __init__(self, state_size, action_size, seed, fc1_units=128, fc2_units = 128):
+        super(Actor, self).__init__()
         self.seed = torch.manual_seed(seed)
-        self.fc1 = nn.Linear(state_values, fc1_values)
-        self.fc2 = nn.Linear(fc1_values, fc2_values)
-        self.fc3 = nn.Linear(fc2_values, action_values)
+        self.fc1 = nn.Linear(state_size, fc1_units)
+        self.fc2 = nn.Linear(fc1_units, fc2_units)
+        self.fc3 = nn.Linear(fc2_units, action_size)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.fc1.weight.data.uniform_(*hidden_init(self.fc1))
+        self.fc2.weight.data.uniform_(*hidden_init(self.fc2))
+        self.fc3.weight.data.uniform_(-3e-3, 3e-3)
 
     def forward(self, state):
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
-        return F.relu(self.fc3(x))
+        return F.tanh(self.fc3(x))
 ```
 
+As shown, the DNN of the Actor model has 4 layers: input layer (33), 2 hidden layers (128 each) and 1 output layer (4). Layer 1 and layer 2 is activated by Relu functions while the last layer used tanh function. We have tried increase the hidden layer size to 256 or 512 but it consumed more training time and even caused failure. 
+
+#### Critic model 
+
+```python
+class Critic(nn.Module):
+    """Critic (Value) Model."""
+
+    def __init__(self, state_size, action_size, seed, fcs1_units=128, fc2_units=128):
+        super(Critic, self).__init__()
+        self.seed = torch.manual_seed(seed)
+        self.fcs1 = nn.Linear(state_size, fcs1_units)
+        self.fc2 = nn.Linear(fcs1_units+action_size, fc2_units)
+        self.fc3 = nn.Linear(fc2_units, 1)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.fcs1.weight.data.uniform_(*hidden_init(self.fcs1))
+        self.fc2.weight.data.uniform_(*hidden_init(self.fc2))
+        self.fc3.weight.data.uniform_(-3e-3, 3e-3)
+
+    def forward(self, state, action):
+        xs = F.leaky_relu(self.fcs1(state))
+        x = torch.cat((xs, action), dim=1)
+        x = F.leaky_relu(self.fc2(x))
+        return self.fc3(x)
+```
+
+At the first glance, the Critic model is a little bit similar to the Actor model. However, the size of the layers are different. The state value is first processed in the first FCN and then concatinated with the action value in the second layer. The concatination value then goes through the second FCN and the third FCN. Finally, the Q_value of the action-state pair is given as the output of those layers.
 ### DQN Learning Agent
 
-The whole learning agent code is placed in the file `agent.py` This is also based on the Q-learning Implementation from Udacity. The agent is considered as a class called DQN_agent with some important functions:
+The whole learning agent code is placed in the file `DDPG_AGent.py` This is also based on the DDPR Implementation from Udacity [3]. The agent is considered as a class called DQN_agent with some important functions:
 
 * step: Update the networks of the agent based on the given experience from the environment. This experience is also added to the memory `ReplayBuffer` for further randomly sample process. 
 * act: Return an appropriate action based on the given state of the environment
-* learn: The learning process is strictly follow the `Deep Q-learning with experience replay` Algorithm described in [1]. In this function, two networks are considered: the local network `qnetwork_local` which is used for training and the target network `qnetwork_target` storing the delayed weights of the local network.  
+* learn: The learning process is strictly follow the `DDPG algorithm` Algorithm described in [1]. In this function, four networks are considered: `actor_local`, `actor_target`,`critic_local`, `critic_target`. Those networks are grouped into two types: The local network used for training and the target network storing the delayed weights of the local network.  
 * ReplayBuffer: To avoid the correlation between two consecutive action and state, the method of Experience Replay is introduced. By using step function, the experiences of the agent is stored in the ReplayBuffer. After that, the agent randomly choose a batch of expriences from this buffer and learn form them. 
+* OU Noise: To add some randomness to the action of the arm, the Ornstein–Uhlenbeck [5] noise model is implmented as function `OUNoise`.
+* Gradient Clipping used for stabilizing the critic model training. `CAUTION` This method is very important as it not only enhance the stability of the model but also increase the training speed.
+```torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)```
 * soft_update: After each learning step, the target network is updated based on the value of the local network. However, instead of discarding all of the old values, a soft update function is implemented to combine the weighted old_value and new_value together. This will help to stabilize the training process. The function is as followed.
-
 ![Soft Update](Asset/softupdate.png)
 
 ### Training Routine
-The training routine is based on the algorithm as in [2]. and the implementation code from Udacity. The training procedure is implemented in the notebook `Navigation.ipynb` as followed.
+The training routine is based on the algorithm as in [1]. and the implementation code from Udacity [3]. The training procedure is implemented in the notebook `Continuous_Control.ipynb` as followed.
 
 ```python
-def DQN_training(env, episode_num = 2000, max_time = 1000, eps_start = 1.0, eps_end = 0.01, eps_decay = 0.99):
-    scores = []
+def DDPG_Learning(num_episode = 300, max_t = 1000):
     scores_windows = deque(maxlen = 100)
-    eps = eps_start
-    is_solved = False
-    eps_solved = 0
-    for episode in range(episode_num):
-        start_time = time()
-        env_info = env.reset(train_mode=True)[brain_name] # reset the environment
-        state = env_info.vector_observations[0]            # get the current state
-        score = 0 # initialize the score
-        for t in range(max_time):
-            #action = np.random.randint(action_size)        # select an action
-            
-            action = agent.act(state, eps)
-            
-            env_info = env.step(action)[brain_name]        # send the action to the environment
-            
-            next_state = env_info.vector_observations[0]   # get the next state
-            reward = env_info.rewards[0]                   # get the reward
-            done = env_info.local_done[0]                  # see if episode has finished
-            score += reward                                # update the score
-            
-            agent.step(state, action, reward, next_state, done) #update the parameter
-            
-            #print(stop_time - start_time)
-            state = next_state                             # roll over the state to next time step
-            if done:                                       # exit loop if episode finished
-                break
-        scores.append(score)
-        scores_windows.append(score)
-        eps = max(eps*eps_decay, eps_end)
+    scores_array = []
+    print_every =  5
+    timer1 = pb.ProgressBar(widgets=widget1, maxval=num_episode).start()
+    for i_episode in range(1, num_episode+1):
         
-        ends = '' if not (episode % 100 == 0) else '\n'
-        stop_time = time()
-        delta_time = stop_time - start_time
-        print('\rEpisode: {}\tAverageScores: {:.2f}. Time/episode: {:.2f}'.format(episode, np.mean(scores_windows),delta_time), end = ends )
-        if(np.mean(scores_windows)>= 13.0 and not is_solved): #Terminated condition
-            torch.save(agent.qnetwork_local.state_dict(), 'Checkpoint_DQN.pth')
-            eps_solved = episode
-            is_solved = True
-            #break
-    print('\rThe algorithm is solved in : {} and average is: {:.2f}'.format(eps_solved, np.mean(scores)))    
-    return scores
-```
-The learning procedure for each episode begins with the reset of the environment and the initial state is observed. For each time step, an appropriate action is calculated by the agent based on the given state. Then, the agent used the tuple (state, action, reward, next_state, done) to update the weights of the neural network. In the end of each episode, the total score is calculated and appended to the running score window of length 100. If the mean value of this score window is greater than 13.0, the problem is considered as solved and vice versa. 
+        timer1.update(i_episode)
+        env_info = env.reset(train_mode=True)[brain_name]     # reset the environment    
+        states = env_info.vector_observations                  # get the current state (for each agent)
+        scores = np.zeros(num_agents)                          # initialize the score (for each agent)
+        agent.reset()                                         # Important: Reset the noise value
+        for t in range(max_t):
+            actions = agent.act(states)
+            env_info = env.step(actions)[brain_name]           # send all actions to tne environment
+            next_states = env_info.vector_observations         # get next state (for each agent)
+            rewards = env_info.rewards                         # get reward (for each agent)
+            dones = env_info.local_done                        # see if episode finished
+            for i_agent in range(len(env_info.agents)):                      # update the network based on each agent
+                agent.step(states[i_agent], actions[i_agent], rewards[i_agent], next_states[i_agent], dones[i_agent])
+            
+            scores += env_info.rewards                         # update the score (for each agent)
+            states = next_states                               # roll over states to next time step
+            if np.any(dones):                                  # exit loop if episode finished
+                break
+            
+        avg_current_score = np.mean(scores)
+        scores_windows.append(avg_current_score)
+        scores_array.append(avg_current_score)
+        if (i_episode % print_every == 0):
+            torch.save(agent.actor_local.state_dict(), 'checkpoint_actor.pth')
+            torch.save(agent.critic_local.state_dict(), 'checkpoint_critic.pth')
+        if (np.mean(scores_windows)>= 30.0):
+            print('The environment is solved in {} steps and average score is: {}'.format(i_episode, np.mean(scores_windows)))
+            torch.save(agent.actor_local.state_dict(), 'checkpoint_actor.pth')
+            torch.save(agent.critic_local.state_dict(), 'checkpoint_critic.pth')
+            break
+        
+    timer1.finish()
+    return scores_array     
 
-Furthermore, to balance between two processes `exploration` and `exploitation` of the agent, the epsilon-greedy algorithm is used with a decay factor of `eps_decey`. 
+score = DDPG_Learning(max_t = 1000)
+
+```
+
+In this project, we used only just `ONE AGENT` for twenty arms. In other words, the twenty arms use the networks of just one agent rather than creating the agent for each arm. Hence, the experiences are sharing among the arms increasing the learning ability of the agent.
+
+The learning procedure for each episode begins with the reset of the environment, the reset of the agent and the initial state of 20  is observed. For each time step, an appropriate action is calculated by the agent based on the given state. Then, the agent used the tuple (state, action, reward, next_state, done) of each arms to update the weights of the neural network. In the end of each episode, the average score of 20 arms is calculated and appended to the running score window of length 100. If the mean value of this score window is greater than 30.0, the problem is considered as solved and vice versa. 
+ 
 ### Hyperparameter
 
-The some hyperameter are set in the file `agent.py` and described as follow:
+The some hyperameter are set in the file `DDPG_agent.py` and described as follow:
 
 ```python
-BUFFER_SIZE = int(1e5)  # replay buffer size
-BATCH_SIZE = 64         # minibatch size
+BUFFER_SIZE = int(1e6)  # replay buffer size
+BATCH_SIZE = 128        # minibatch size
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
-LR = 5e-4               # learning rate 
-UPDATE_EVERY = 4        # how often to update the network
+LR_ACTOR = 1e-4         # learning rate of the actor 
+LR_CRITIC = 1e-4        # learning rate of the critic
+WEIGHT_DECAY = 0  # L2 weight decay 0.001
+UPDATE_EVERY = 20       # Update after t-step
+NUM_UPDATE = 10           # Number of updates per step
 ```
+
+The two later hyperparameters are significantly important as it decrease the learning time and ensure the convergence. 
 ## Result
 
-After having set up and installed all the require packages as mentioned in the file `README.md`, the evaluation process of agent can be started by running the notebook `Navigation.ipynb`.
+After having set up and installed all the require packages as mentioned in the file `README.md`, the evaluation process of agent can be started by running the notebook `Continuous_Control.ipynb`.
 
 ### Training score
-As can be seen in the below figure, the problem is sovled in around 436 episodes and the total average of 14.12 point. In order to investigate the saturated value of the agent, the training process keeps running until 2000 episodes. With the maximum timestep of 1000 for each episode, the training scores are saturated at some value around 15-16 and very noisy. Hence, some methods should be implemented to suppress the noise in the training steps. 
-![Training Result](Asset/Training.png)
 
-Furthermore, the `eps_decay` variable plays an important role in the convergence time of the algorithm. When its very large as in `0.9999`, the environment can not be sovled. The recomendation value for this value is in the range between `0.98` and `0.99`.
+We have tried several times for finding the most suitable setting and parameter for this project. Most of the training effort consume a huge amount of times (around 18 hours) and even fail to converge. 
+
+#### `UPDATE_EVERY = 1; NUM_UPDATE = 1`
+
+![Training Result 1](Asset/Attemp_1.png)
+
+As shown in the plot, the agent increase the score steadily but after 100 episodes, it starts falling off and cannot recover. The training time is 18 hours. 
+
+#### `UPDATE_EVERY = 20; NUM_UPDATE = 10`
+![Training Result 2](Asset/Attemp_3.png)
+![Training Result Time](Asset/Attemp_3_time.png)
+With this hyperparameters, the agent converges very fast and get the  current point over 30 within just 10 episode and the average scores over 30.0 in just 36 episodes. Furthermore, the running time of training process is just `45 minutes`. Hence, we conclude this is the good parameter for this project. The "training loop 300" shown in the image is just a minor mistake in programming. 
+
 
 ### Testing score
-In order to test the behavior of the trained agent, a testing process with 100 episode is executed. As can be seen from the graph below, the scores are very noisy and the average score is around `11.04`. When watching the agent plays in the GUI, we see that sometime the agent is stuck in a local minima by the surrounding purple bananas and make some oscillations. 
+In order to test the behavior of the trained agent, a testing process with 100 episode is executed. As can be seen from the graph below, the scores are very noisy but always greater than 30.0. Hence the average score is around `37.13`. When watching the agent plays in the GUI, we see that all the arms catching the green balls very well. 
 
-![Test Result](Asset/TestScore.png)
+![Test Result](Asset/Testing_result.png)
 # Further Development
 
 Some developments could be made to enhance the performance of this DQN:
 
-* Instead of randomly choosing the batch from the ReplayBuffer, we may choose the experience based on its importance as described in the algorithm Priotized Experience Replay.
-* Develop a new model but with the same agent and training process to solve the challenge of "Learning from Pixels". In this challenge, the state spaces are now the raw images, hence we need to add some `CNN` Layers to the Q-model.
-* Implement and test some DQN-based algorithm such as Dueling DQN, Rainbow, Noisy DQN.
+* Explore the effects of the gradient clipping methods in enhancing the stability of training process.
+* Develop a new model but with the same agent and training process to solve the challenge of "Crawler Environment". 
+* Implement and test some others algorithm such as Proximal Policy Optimization (PPO), Distributed Distributional Deterministic Policy Gradients (D4PG), A3C. 
 
 # References
 
-* [1] Mnih, Volodymyr & Kavukcuoglu, Koray & Silver, David, et. al.. [*Human-level control through deep-reinforcement learning*](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
-* [2] [DQN lunar-lander implementation from Udacity](https://github.com/udacity/deep-reinforcement-learning/tree/master/dqn/solution)
+* [1] Lillicrap et. al.. [*Continuous control through deep reinforcement learning*](https://arxiv.org/pdf/1509.02971.pdf)
+* [2] Silver et. al.. [*Deterministic Policy Gradients Algorithms*](http://proceedings.mlr.press/v32/silver14.pdf)
+* [3] Mnih, Volodymyr & Kavukcuoglu, Koray & Silver, David, et. al.. [*Human-level control through deep-reinforcement learning*](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
+* [4] [DDPG implementation from Udacity](https://github.com/udacity/deep-reinforcement-learning/tree/master/ddpg-pendulum)
+* [5] [Ornstein–Uhlenbeck process](https://en.wikipedia.org/wiki/Ornstein%E2%80%93Uhlenbeck_process)
