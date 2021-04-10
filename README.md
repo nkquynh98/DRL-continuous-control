@@ -67,6 +67,7 @@ Some important files:
 ### Training result
 ![Training Result 2](Asset/Attemp_3.png)
 ![Training Result Time](Asset/Attemp_3_time.png)
+
 The agent converges very fast and get the  current point over 30 within just 10 episode and the average scores over 30.0 in just 36 episodes. Furthermore, the running time of training process is just `45 minutes`. 
 
 ### Testing result
