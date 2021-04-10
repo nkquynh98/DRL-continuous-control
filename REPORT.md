@@ -201,9 +201,9 @@ We have tried several times for finding the most suitable setting and parameter 
 As shown in the plot, the agent increase the score steadily but after 100 episodes, it starts falling off and cannot recover. The training time is 18 hours. 
 
 #### `UPDATE_EVERY = 20; NUM_UPDATE = 10`
-![Training Result 2](Asset/Attemp_3.png)
-![Training Result Time](Asset/Attemp_3_time.png)
-With this hyperparameters, the agent converges very fast and get the  current point over 30 within just 10 episode and the average scores over 30.0 in just 36 episodes. Furthermore, the running time of training process is just `45 minutes`. Hence, we conclude this is the good parameter for this project. The "training loop 300" shown in the image is just a minor mistake in programming. 
+![Training Result 2](Asset/Attemp_4.png)
+![Training Result Time](Asset/Training_time_4.png)
+With this hyperparameters, the agent converges very fast and get the  instantaneous score over 30 within just 20 episode and the average scores over 30.0 in just 65 episodes. Furthermore, the running time of training process is just `3 hours`. Hence, we conclude this is the good parameter for this project. The "training loop 300" shown in the image is just a minor mistake in programming. 
 
 
 ### Testing score

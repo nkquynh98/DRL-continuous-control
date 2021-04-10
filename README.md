@@ -65,10 +65,10 @@ Some important files:
 * `REPORT.md` --> The report for this project.
 
 ### Training result
-![Training Result 2](Asset/Attemp_3.png)
-![Training Result Time](Asset/Attemp_3_time.png)
+![Training Result 2](Asset/Attemp_4.png)
+![Training Result Time](Asset/Training_time_4.png)
 
-The agent converges very fast and get the  current point over 30 within just 10 episode and the average scores over 30.0 in just 36 episodes. Furthermore, the running time of training process is just `45 minutes`. 
+With this hyperparameters, the agent converges very fast and get the  instantaneous score over 30 within just 20 episode and the average scores over 30.0 in just 65 episodes. Furthermore, the running time of training process is just `3 hours`.
 
 ### Testing result
 ![Test Result](Asset/Testing_result.png)
